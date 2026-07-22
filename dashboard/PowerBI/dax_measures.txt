@@ -1,0 +1,175 @@
+// DAX Measures for E-commerce BI Power BI Dashboard
+// Copy and paste these measures into Power BI Desktop
+
+// Revenue Measures
+Total Revenue = SUM(fact_sales[total_price])
+Total Profit = SUM(fact_sales[profit])
+Total Quantity = SUM(fact_sales[quantity])
+Total Orders = DISTINCTCOUNT(fact_sales[order_id])
+Total Customers = DISTINCTCOUNT(fact_sales[customer_id])
+
+// Time Intelligence Measures
+Revenue YTD = TOTALYTD([Total Revenue], dim_date[date])
+Revenue QTD = TOTALQTD([Total Revenue], dim_date[date])
+Revenue MTD = TOTALMTD([Total Revenue], dim_date[date])
+
+Revenue YoY% =
+VAR CurrentYear = [Total Revenue]
+VAR PreviousYear = CALCULATE([Total Revenue], SAMEPERIODLASTYEAR(dim_date[date]))
+RETURN
+DIVIDE(CurrentYear - PreviousYear, PreviousYear, 0)
+
+Revenue QoQ% =
+VAR CurrentQuarter = [Total Revenue]
+VAR PreviousQuarter = CALCULATE([Total Revenue], PREVIOUSQUARTER(dim_date[date]))
+RETURN
+DIVIDE(CurrentQuarter - PreviousQuarter, PreviousQuarter, 0)
+
+Revenue MoM% =
+VAR CurrentMonth = [Total Revenue]
+VAR PreviousMonth = CALCULATE([Total Revenue], PREVIOUSMONTH(dim_date[date]))
+RETURN
+DIVIDE(CurrentMonth - PreviousMonth, PreviousMonth, 0)
+
+// Profitability Measures
+Profit Margin = DIVIDE([Total Profit], [Total Revenue], 0)
+Average Order Value = DIVIDE([Total Revenue], [Total Orders], 0)
+Average Profit per Order = DIVIDE([Total Profit], [Total Orders], 0)
+
+// Customer Measures
+Customer LTV =
+AVERAGEX(
+    SUMMARIZE(
+        fact_sales,
+        dim_customers[customer_id],
+        "CustomerTotal", SUM(fact_sales[total_price])
+    ),
+    [CustomerTotal]
+)
+
+Repeat Purchase Rate =
+VAR CustomersWithOrders =
+    CALCULATETABLE(
+        VALUES(fact_sales[customer_id]),
+        NOT ISBLANK(fact_sales[order_id])
+    )
+VAR CustomersWithMultipleOrders =
+    FILTER(
+        CustomersWithOrders,
+        CALCULATE(DISTINCTCOUNT(fact_sales[order_id]), fact_sales[customer_id] = EARLIER(fact_sales[customer_id])) > 1
+    )
+RETURN
+DIVIDE(
+    COUNTROWS(CustomersWithMultipleOrders),
+    COUNTROWS(CustomersWithOrders),
+    0
+)
+
+// Product Measures
+Top Selling Products by Revenue =
+TOPN(
+    10,
+    SUMMARIZE(
+        fact_sales,
+        dim_products[product_id],
+        dim_products[product_category_name_english],
+        "Revenue", SUM(fact_sales[total_price])
+    ),
+    [Revenue], DESC
+)
+
+Top Selling Products by Quantity =
+TOPN(
+    10,
+    SUMMARIZE(
+        fact_sales,
+        dim_products[product_id],
+        dim_products[product_category_name_english],
+        "Quantity", SUM(fact_sales[quantity])
+    ),
+    [Quantity], DESC
+)
+
+// Marketing Measures
+Marketing ROI =
+VAR MarketingRevenue =
+    CALCULATE(
+        SUM(fact_sales[total_price]),
+        NOT ISBLANK(fact_sales[marketing_id])
+    )
+VAR MarketingSpend =
+    // This would require marketing spend data in dim_marketing
+    // For now, assuming we have a budget column
+    CALCULATE(
+        SUM(dim_marketing[budget]),
+        NOT ISBLANK(dim_marketing[marketing_id])
+    )
+RETURN
+DIVIDE(MarketingRevenue - MarketingSpend, MarketingSpend, 0)
+
+// Return Measures
+Return Rate =
+DIVIDE(
+    CALCULATE(COUNTROWS(fact_sales), NOT ISBLANK(fact_sales[return_id])),
+    [Total Orders],
+    0
+)
+
+Return Value =
+CALCULATE(SUM(fact_sales[total_price]), NOT ISBLANK(fact_sales[return_id]))
+
+// Forecast Measures (if using forecasting tables or calculated columns)
+// These would typically be created in Power BI using forecasting features
+// or by creating calculated tables with forecast values
+
+// Basket Analysis Measures (if applicable)
+Average Basket Size =
+AVERAGEX(
+    SUMMARIZE(
+        fact_sales,
+        fact_sales[order_id],
+        "BasketSize", SUM(fact_sales[quantity])
+    ),
+    [BasketSize]
+)
+
+// Geographic Measures
+Revenue by Country =
+CALCULATE([Total Revenue], ALL(dim_customers[customer_country])) // Assuming country column exists
+
+// Inventory Measures (if inventory facts available)
+Inventory Turnover =
+// Would require average inventory and cost of goods sold
+// Placeholder for when inventory data is available
+0
+
+// Cohort Analysis Measures (simplified)
+Customer Retention Rate =
+// This is complex to calculate in DAX and usually done in the data preparation phase
+// Placeholder for cohort-based retention
+0
+
+// Formatting Measures for Display
+Revenue Formatted =
+FORMAT([Total Revenue], "$#,##0")
+
+Profit Formatted =
+FORMAT([Total Profit], "$#,##0")
+
+AOV Formatted =
+FORMAT([Average Order Value], "$#,##0.00")
+
+// Conditional formatting measures (examples)
+Revenue Status =
+IF(
+    [Revenue MoM%] >= 0,
+    "Positive",
+    "Negative"
+)
+
+Profit Margin Status =
+IF(
+    [Profit Margin] >= 0.2,
+    "Good",
+    IF([Profit Margin] >= 0.1, "Average", "Poor")
+)

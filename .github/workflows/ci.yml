@@ -1,0 +1,187 @@
+name: CI/CD Pipeline for E-commerce BI Platform
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Run every Monday at 2 AM UTC
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./ecommerce_bi_platform
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r tests/requirements.txt
+
+    - name: Create data directories
+      run: |
+        mkdir -p data/raw data/processed data/warehouse logs reports/output reports/output/charts
+
+    - name: Run ETL Pipeline with sample data
+      run: |
+        # Create minimal sample data for testing
+        mkdir -p data/raw
+        cat > data/raw/online_retail_ii.csv << 'EOF'
+        InvoiceNo,StockCode,Description,Quantity,InvoiceDate,UnitPrice,CustomerID,Country
+        536365,85123A,WHITE HANGING HEART T-LIGHT HOLDER,6,12/1/2010 8:26,2.55,17850,United Kingdom
+        536365,71053,WHITE METAL LANTERN,6,12/1/2010 8:26,3.39,17850,United Kingdom
+        536365,84406B,CREAM CUPID HEARTS COAT HANGER,8,12/1/2010 8:26,2.75,17850,United Kingdom
+        536365,84029G,KNITTED UNION FLAG HOT WATER BOTTLE,6,12/1/2010 8:26,3.39,17850,United Kingdom
+        536366,22492,REGENCY CAKESTAND 3 TIER,8,12/1/2010 8:28,2.55,17850,United Kingdom
+        536366,22493,REGENCY CAKESTAND TIER,4,12/1/2010 8:28,3.39,17850,United Kingdom
+        536366,22494,RETROSPOT TEAPOT,1,12/1/2010 8:28,2.75,17850,United Kingdom
+        536367,85099B,SET OF 3 CAKE TINS PANTRY DESIGN,2,12/1/2010 8:34,3.29,17850,United Kingdom
+        536367,22693,ROSES REGENCY TEACUP AND SAUCER,6,12/1/2010 8:34,3.39,17850,United Kingdom
+        EOF
+
+        # Run the ETL pipeline
+        python etl/pipeline.py
+
+    - name: Verify data loading
+      run: |
+        python -c "
+        import sqlite3
+        from pathlib import Path
+        db_path = Path('data/warehouse/ecommerce_bi.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM fact_sales')
+        count = cursor.fetchone()[0]
+        print(f'Fact table rows: {count}')
+        assert count > 0, 'No data loaded into fact table'
+        conn.close()
+        "
+
+    - name: Run unit tests
+      run: |
+        python tests/run_tests.py
+
+    - name: Run analysis modules
+      run: |
+        python -m analysis.customer_segmentation
+        python -m analysis.kpi_calculation
+        # Skip longer-running tests in CI
+        # python -m analysis.sales_forecasting
+        # python -m analysis.cohort_analysis
+        # python -m analysis.retention_analysis
+
+    - name: Generate sample report
+      run: |
+        python reports/weekly_report_generator.py --start-date 2023-01-01 --end-date 2023-01-07
+
+    - name: Check for report generation
+      run: |
+        ls -la reports/output/
+        test -f reports/output/weekly_report_*_executive_summary.csv && echo "CSV report generated" || exit 1
+        test -f reports/output/weekly_report_*.xlsx && echo "Excel report generated" || exit 1
+        test -f reports/output/weekly_report_*.pdf && echo "PDF report generated" || exit 1
+
+    - name: Linting with flake8
+      run: |
+        flake8 etl/ analysis/ reports/ --max-line-length=100 --extend-ignore=E203,W503
+
+    - name: Code formatting check with black
+      run: |
+        black --check etl/ analysis/ reports/ --line-length=100
+
+    - name: Import sorting check with isort
+      run: |
+        isort --check-only etl/ analysis/ reports/ --profile/
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          logs/
+          reports/output/
+          .pytest_cache/
+        retention-days: 1
+
+  security:
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: ./ecommerce_bi_platform
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run security scan
+      uses: ansible/ansible-lint-action@v1
+      with:
+        path: .
+
+    - name: Check for secrets
+      run: |
+        # Simple check for common secret patterns
+        grep -r "password\|secret\|key\|token" etl/ analysis/ reports/ --include="*.py" || true
+        echo "Security scan completed"
+
+  documentation:
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: ./ecommerce_bi_platform
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install mkdocs mkdocs-material
+
+    - name: Build documentation
+      run: |
+        mkdocs build --strict
+
+    - name: Upload documentation
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: site/
+        retention-days: 1
+
+  # Optional deployment job (commented out for safety)
+  # deploy:
+  #   runs-on: ubuntu-latest
+  #   needs: [test, security, documentation]
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: Deploy to GitHub Pages
+  #     uses: peaceiris/actions-gh-pages@v3
+  #     with:
+  #       github_token: ${{ secrets.GITHUB_TOKEN }}
+  #       publish_dir: ./ecommerce_bi_platform/site
+  #       force_orphan: true

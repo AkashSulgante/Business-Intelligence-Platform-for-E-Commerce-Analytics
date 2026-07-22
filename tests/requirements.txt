@@ -1,0 +1,20 @@
+# Test dependencies - in addition to the base requirements
+# These are typically already included in the base requirements.txt
+# But we can specify test-specific ones here if needed
+
+# Testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# For mocking (if needed)
+mock>=4.0.0
+
+# For testing pandas
+pandas>=1.5.0
+numpy>=1.24.0
+
+# For testing SQLite (built-in, but ensuring version compatibility)
+# No additional package needed
+
+# For testing file operations
+# No additional package needed

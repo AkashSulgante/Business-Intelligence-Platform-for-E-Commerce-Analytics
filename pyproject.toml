@@ -1,0 +1,13 @@
+# pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["--verbose", "--tb=short", "--strict-markers"]
+markers = [
+    "slow: marks tests as slow",
+    "etl: marks tests related to ETL processes",
+    "analysis: marks tests related to analysis modules",
+    "reporting: marks tests related to reporting and dashboard",
+]
