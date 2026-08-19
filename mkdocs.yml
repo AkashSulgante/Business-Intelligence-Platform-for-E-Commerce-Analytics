@@ -1,0 +1,12 @@
+site_name: E-commerce BI Platform
+site_description: Documentation for the E-commerce Business Intelligence Platform
+docs_dir: docs
+
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - Architecture: Architecture.md
+  - Data Dictionary: DataDictionary.md
+  - Business Recommendations: BusinessRecommendations.md

@@ -11,10 +11,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./ecommerce_bi_platform
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -89,9 +85,9 @@ jobs:
     - name: Check for report generation
       run: |
         ls -la reports/output/
-        test -f reports/output/weekly_report_*_executive_summary.csv && echo "CSV report generated" || exit 1
-        test -f reports/output/weekly_report_*.xlsx && echo "Excel report generated" || exit 1
-        test -f reports/output/weekly_report_*.pdf && echo "PDF report generated" || exit 1
+        compgen -G "reports/output/weekly_report_*_executive_summary.csv" > /dev/null && echo "CSV report generated" || exit 1
+        compgen -G "reports/output/weekly_report_*.xlsx" > /dev/null && echo "Excel report generated" || exit 1
+        compgen -G "reports/output/weekly_report_*.pdf" > /dev/null && echo "PDF report generated" || exit 1
 
     - name: Linting with flake8
       run: |
@@ -103,7 +99,7 @@ jobs:
 
     - name: Import sorting check with isort
       run: |
-        isort --check-only etl/ analysis/ reports/ --profile/
+        isort --check-only etl/ analysis/ reports/ --profile black
 
     - name: Upload test results
       if: always()
@@ -119,10 +115,6 @@ jobs:
   security:
     runs-on: ubuntu-latest
     needs: test
-    defaults:
-      run:
-        working-directory: ./ecommerce_bi_platform
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -141,10 +133,6 @@ jobs:
   documentation:
     runs-on: ubuntu-latest
     needs: test
-    defaults:
-      run:
-        working-directory: ./ecommerce_bi_platform
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
