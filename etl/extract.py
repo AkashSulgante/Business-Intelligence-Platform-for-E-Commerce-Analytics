@@ -29,6 +29,7 @@ RAW_DATA_DIR = get_project_root() / "data" / "raw"
 EXPECTED_FILES = {
     "online_retail_ii": "online_retail_ii.xlsx"
 }
+LOCAL_CSV_FILE = RAW_DATA_DIR / "online_retail_ii.csv"
 
 def download_file(url: str, destination: Path) -> bool:
     """
@@ -84,6 +85,18 @@ def extract_online_retail_ii() -> pd.DataFrame:
     """
     file_name = EXPECTED_FILES["online_retail_ii"]
     file_path = RAW_DATA_DIR / file_name
+
+    # CI and local development can provide a small CSV fixture. Prefer it over
+    # the remote dataset so the pipeline is reproducible and does not depend on
+    # an external URL being available.
+    if LOCAL_CSV_FILE.exists():
+        logger.info(f"Loading local CSV fixture: {LOCAL_CSV_FILE}")
+        try:
+            df = pd.read_csv(LOCAL_CSV_FILE)
+            logger.info(f"Loaded local CSV fixture with shape: {df.shape}")
+            return df
+        except Exception as e:
+            logger.warning(f"Could not read local CSV fixture: {str(e)}")
 
     # Check if a local Excel file already exists
     if file_path.exists():
